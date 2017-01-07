@@ -812,6 +812,7 @@ DBGP_FUNC(breakpoint_set)
 	brk_info->function_break_type = 0;
 	brk_info->exceptionname = NULL;
 	brk_info->condition = NULL;
+	brk_info->condition_eval = NULL;
 	brk_info->disabled = 0;
 	brk_info->temporary = 0;
 	brk_info->hit_count = 0;
