@@ -440,6 +440,8 @@ static xdebug_xml_node* return_stackframe(int nr TSRMLS_DC)
 }
 
 static int xdebug_breakpoint_assign_filename(xdebug_brk_info *brk_info, char* command) {
+	function_stack_entry *fse;
+
 	/* If no filename is given, we use the current one */
 	if (!command) {
 		fse = xdebug_get_stack_tail(TSRMLS_C);
@@ -452,7 +454,7 @@ static int xdebug_breakpoint_assign_filename(xdebug_brk_info *brk_info, char* co
 	} else {
 		char realpath_file[MAXPATHLEN];
 
-		brk_info->file = xdebug_path_from_url(CMD_OPTION('f') TSRMLS_CC);
+		brk_info->file = xdebug_path_from_url(command TSRMLS_CC);
 
 		/* Now we do some real path checks to resolve symlinks. */
 		if (VCWD_REALPATH(brk_info->file, realpath_file)) {
@@ -799,7 +801,6 @@ DBGP_FUNC(breakpoint_set)
 	int                   brk_id = 0;
 	int                   new_length = 0;
 	int                   filename_error = 0;
-	function_stack_entry *fse;
 	XDEBUG_STR_SWITCH_DECL;
 
 	brk_info = xdmalloc(sizeof(xdebug_brk_info));
@@ -847,7 +848,7 @@ DBGP_FUNC(breakpoint_set)
 		brk_info->temporary = strtol(CMD_OPTION('r'), NULL, 10);
 	}
 
-	if ((strcmp(CMD_OPTION('t'), "line") == 0) || (strcmp(CMD_OPTION('t'), 'conditional') == 0)) {
+	if ((strcmp(CMD_OPTION('t'), "line") == 0) || (strcmp(CMD_OPTION('t'), "conditional") == 0)) {
 		if (!CMD_OPTION('n')) {
 			RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_INVALID_ARGS);
 		}
@@ -869,7 +870,7 @@ DBGP_FUNC(breakpoint_set)
 		xdebug_llist_insert_next(context->line_breakpoints, XDEBUG_LLIST_TAIL(context->line_breakpoints), (void*) brk_info);
 	} else
 
-	if ((strcmp(CMD_OPTION('t'), 'watch') == 0)) {
+	if ((strcmp(CMD_OPTION('t'), "watch") == 0)) {
 		if (!CMD_OPTION('-')) {
 			RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_INVALID_ARGS);
 		}
@@ -883,7 +884,7 @@ DBGP_FUNC(breakpoint_set)
 
 		tmp_name = xdebug_sprintf("%s::%s", brk_info->file, brk_info->condition);
 		brk_id = breakpoint_admin_add(context, BREAKPOINT_TYPE_WATCH, tmp_name);
-		if (!xdebug_hash_add(context->watch_breakpoints, tmp_name, strlen(tmp_name), (void*) brk_info);) {
+		if (!xdebug_hash_add(context->watch_breakpoints, tmp_name, strlen(tmp_name), (void*) brk_info)) {
 			RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_INVALID_ARGS);
 		}
 		
