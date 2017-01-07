@@ -439,6 +439,33 @@ static xdebug_xml_node* return_stackframe(int nr TSRMLS_DC)
 	return tmp;
 }
 
+static int xdebug_breakpoint_assign_filename(xdebug_brk_info *brk_info, char* command) {
+	/* If no filename is given, we use the current one */
+	if (!command) {
+		fse = xdebug_get_stack_tail(TSRMLS_C);
+		if (!fse) {
+			return XDEBUG_ERROR_STACK_DEPTH_INVALID;
+		} else {
+			brk_info->file = xdebug_path_from_url(fse->filename TSRMLS_CC);
+			brk_info->file_len = strlen(brk_info->file);
+		}
+	} else {
+		char realpath_file[MAXPATHLEN];
+
+		brk_info->file = xdebug_path_from_url(CMD_OPTION('f') TSRMLS_CC);
+
+		/* Now we do some real path checks to resolve symlinks. */
+		if (VCWD_REALPATH(brk_info->file, realpath_file)) {
+			xdfree(brk_info->file);
+			brk_info->file = xdstrdup(realpath_file);
+		}
+
+		brk_info->file_len = strlen(brk_info->file);
+	}
+
+	return XDEBUG_ERROR_OK;
+}
+
 /*****************************************************************************
 ** Client command handlers - Breakpoints
 */
@@ -754,6 +781,7 @@ DBGP_FUNC(breakpoint_set)
 	char                 *tmp_name;
 	int                   brk_id = 0;
 	int                   new_length = 0;
+	int                   filename_error = 0;
 	function_stack_entry *fse;
 	XDEBUG_STR_SWITCH_DECL;
 
@@ -801,33 +829,15 @@ DBGP_FUNC(breakpoint_set)
 		brk_info->temporary = strtol(CMD_OPTION('r'), NULL, 10);
 	}
 
-	if ((strcmp(CMD_OPTION('t'), "line") == 0) || (strcmp(CMD_OPTION('t'), "conditional") == 0)) {
+	if ((strcmp(CMD_OPTION('t'), "line") == 0) || (strcmp(CMD_OPTION('t'), 'conditional') == 0)) {
 		if (!CMD_OPTION('n')) {
 			RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_INVALID_ARGS);
 		}
 		brk_info->lineno = strtol(CMD_OPTION('n'), NULL, 10);
 
-		/* If no filename is given, we use the current one */
-		if (!CMD_OPTION('f')) {
-			fse = xdebug_get_stack_tail(TSRMLS_C);
-			if (!fse) {
-				RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_STACK_DEPTH_INVALID);
-			} else {
-				brk_info->file = xdebug_path_from_url(fse->filename TSRMLS_CC);
-				brk_info->file_len = strlen(brk_info->file);
-			}
-		} else {
-			char realpath_file[MAXPATHLEN];
-
-			brk_info->file = xdebug_path_from_url(CMD_OPTION('f') TSRMLS_CC);
-
-			/* Now we do some real path checks to resolve symlinks. */
-			if (VCWD_REALPATH(brk_info->file, realpath_file)) {
-				xdfree(brk_info->file);
-				brk_info->file = xdstrdup(realpath_file);
-			}
-
-			brk_info->file_len = strlen(brk_info->file);
+		filename_error = xdebug_breakpoint_assign_filename(brk_info, CMD_OPTION('f'));
+		if (filename_error) {
+			RETURN_RESULT(XG(status), XG(reason), filename_error);
 		}
 
 		/* Perhaps we have a break condition */
@@ -837,6 +847,25 @@ DBGP_FUNC(breakpoint_set)
 
 		tmp_name = xdebug_sprintf("%s$%lu", brk_info->file, brk_info->lineno);
 		brk_id = breakpoint_admin_add(context, BREAKPOINT_TYPE_LINE, tmp_name);
+		xdfree(tmp_name);
+		xdebug_llist_insert_next(context->line_breakpoints, XDEBUG_LLIST_TAIL(context->line_breakpoints), (void*) brk_info);
+	} else
+
+	if ((strcmp(CMD_OPTION('t'), 'watch') == 0)) {
+		if (!CMD_OPTION('-')) {
+			RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_INVALID_ARGS);
+		}
+
+		brk_info->condition = (char*) xdebug_base64_decode((unsigned char*) CMD_OPTION('-'), strlen(CMD_OPTION('-')), &new_length);
+
+		filename_error = xdebug_breakpoint_assign_filename(brk_info, CMD_OPTION('f'));
+		if (filename_error) {
+			RETURN_RESULT(XG(status), XG(reason), filename_error);
+		}
+
+		tmp_name = xdebug_sprintf("%s::%s", brk_info->file, brk_info->condition);
+		brk_id = breakpoint_admin_add(context, BREAKPOINT_TYPE_WATCH, tmp_name);
+		
 		xdfree(tmp_name);
 		xdebug_llist_insert_next(context->line_breakpoints, XDEBUG_LLIST_TAIL(context->line_breakpoints), (void*) brk_info);
 	} else
@@ -883,10 +912,6 @@ DBGP_FUNC(breakpoint_set)
 		} else {
 			brk_id = breakpoint_admin_add(context, BREAKPOINT_TYPE_EXCEPTION, CMD_OPTION('x'));
 		}
-	} else
-
-	if (strcmp(CMD_OPTION('t'), "watch") == 0) {
-		RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_BREAKPOINT_TYPE_NOT_SUPPORTED);
 	}
 
 	xdebug_xml_add_attribute_ex(*retval, "id", xdebug_sprintf("%lu", brk_id), 0, 1);
