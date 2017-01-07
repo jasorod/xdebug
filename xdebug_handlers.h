@@ -58,6 +58,7 @@ struct _xdebug_con {
 	char                  *program_name;
 	xdebug_hash           *breakpoint_list;
 	xdebug_hash           *function_breakpoints;
+	xdebug_hash           *watch_breakpoints;
 	xdebug_hash           *eval_id_lookup;
 	int                    eval_id_sequence;
 	xdebug_llist          *line_breakpoints;
@@ -91,6 +92,7 @@ struct _xdebug_brk_info {
 	int                   file_len;
 	int                   lineno;
 	char                 *condition;
+	char                 *condition_eval;
 	int                   disabled;
 	int                   temporary;
 	int                   hit_count;
