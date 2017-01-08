@@ -616,7 +616,7 @@ static xdebug_brk_info* breakpoint_brk_info_fetch(int type, char *hkey)
 			for (le = XDEBUG_LLIST_HEAD(XG(context).line_breakpoints); le != NULL; le = XDEBUG_LLIST_NEXT(le)) {
 				brk = XDEBUG_LLIST_VALP(le);
 
-				if (stcmp(brk->condition, hkey) == 0) {
+				if (strcmp(brk->condition, hkey) == 0) {
 					return brk;
 				}
 			}
@@ -2361,7 +2361,7 @@ int xdebug_dbgp_init(xdebug_con *context, int mode)
 	context->breakpoint_list = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_admin_dtor);
 	context->function_breakpoints = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_brk_dtor);
 	context->exception_breakpoints = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_brk_dtor);
-	context->watch_breakpoints = xdebug_llist_alloc(64, (xdebug_hash_dtor) xdebug_llist_brk_dtor);
+	context->watch_breakpoints = xdebug_llist_alloc((xdebug_llist_dtor) xdebug_llist_brk_dtor);
 	context->line_breakpoints = xdebug_llist_alloc((xdebug_llist_dtor) xdebug_llist_brk_dtor);
 	context->eval_id_lookup = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_eval_info_dtor);
 	context->eval_id_sequence = 0;
