@@ -613,8 +613,12 @@ static xdebug_brk_info* breakpoint_brk_info_fetch(int type, char *hkey)
 			break;
 
 		case BREAKPOINT_TYPE_WATCH:
-			if (xdebug_hash_find(XG(context).watch_breakpoints, hkey, strlen(hkey), (void *) &brk)) {
-				return brk;
+			for (le = XDEBUG_LLIST_HEAD(XG(context).line_breakpoints); le != NULL; le = XDEBUG_LLIST_NEXT(le)) {
+				brk = XDEBUG_LLIST_VALP(le);
+
+				if (stcmp(brk->condition, hkey) == 0) {
+					return brk;
+				}
 			}
 			break;
 	}
@@ -664,8 +668,14 @@ static int breakpoint_remove(int type, char *hkey)
 			break;
 
 		case BREAKPOINT_TYPE_WATCH:
-			if (xdebug_hash_delete(XG(context).watch_breakpoints, hkey, strlen(hkey))) {
-				retval = SUCCESS;
+			for (le = XDEBUG_LLIST_HEAD(XG(context).watch_breakpoints); le != NULL; le = XDEBUG_LLIST_NEXT(le)) {
+				brk = XDEBUG_LLIST_VALP(le);
+
+				if (strcmp(brk->condition, hkey) == 0) {
+					xdebug_llist_remove(XG(context).watch_breakpoints, le, NULL);
+					retval = SUCCESS;
+					break;
+				}
 			}
 			break;
 	}
@@ -884,11 +894,8 @@ DBGP_FUNC(breakpoint_set)
 
 		tmp_name = xdebug_sprintf("%s::%s", brk_info->file, brk_info->condition);
 		brk_id = breakpoint_admin_add(context, BREAKPOINT_TYPE_WATCH, tmp_name);
-		if (!xdebug_hash_add(context->watch_breakpoints, tmp_name, strlen(tmp_name), (void*) brk_info)) {
-			RETURN_RESULT(XG(status), XG(reason), XDEBUG_ERROR_INVALID_ARGS);
-		}
-		
 		xdfree(tmp_name);
+		xdebug_llist_insert_next(context->watch_breakpoints, XDEBUG_LLIST_TAIL(context->watch_breakpoints), (void*) brk_info);
 	} else
 
 	if ((strcmp(CMD_OPTION('t'), "call") == 0) || (strcmp(CMD_OPTION('t'), "return") == 0)) {
@@ -2354,7 +2361,7 @@ int xdebug_dbgp_init(xdebug_con *context, int mode)
 	context->breakpoint_list = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_admin_dtor);
 	context->function_breakpoints = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_brk_dtor);
 	context->exception_breakpoints = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_brk_dtor);
-	context->watch_breakpoints = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_brk_dtor);
+	context->watch_breakpoints = xdebug_llist_alloc(64, (xdebug_hash_dtor) xdebug_llist_brk_dtor);
 	context->line_breakpoints = xdebug_llist_alloc((xdebug_llist_dtor) xdebug_llist_brk_dtor);
 	context->eval_id_lookup = xdebug_hash_alloc(64, (xdebug_hash_dtor) xdebug_hash_eval_info_dtor);
 	context->eval_id_sequence = 0;
@@ -2397,8 +2404,8 @@ int xdebug_dbgp_deinit(xdebug_con *context)
 		xdfree(context->options);
 		xdebug_hash_destroy(context->function_breakpoints);
 		xdebug_hash_destroy(context->exception_breakpoints);
-		xdebug_hash_destroy(context->watch_breakpoints);
 		xdebug_hash_destroy(context->eval_id_lookup);
+		xdebug_llist_destroy(context->watch_breakpoints, NULL);
 		xdebug_llist_destroy(context->line_breakpoints, NULL);
 		xdebug_hash_destroy(context->breakpoint_list);
 		xdfree(context->buffer);

@@ -58,9 +58,9 @@ struct _xdebug_con {
 	char                  *program_name;
 	xdebug_hash           *breakpoint_list;
 	xdebug_hash           *function_breakpoints;
-	xdebug_hash           *watch_breakpoints;
 	xdebug_hash           *eval_id_lookup;
 	int                    eval_id_sequence;
+	xdebug_llist          *watch_breakpoints;
 	xdebug_llist          *line_breakpoints;
 	xdebug_hash           *exception_breakpoints;
 	xdebug_debug_list      list;
