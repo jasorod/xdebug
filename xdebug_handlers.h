@@ -92,7 +92,7 @@ struct _xdebug_brk_info {
 	int                   file_len;
 	int                   lineno;
 	char                 *condition;
-	char                 *condition_eval;
+	zval                  condition_eval;
 	int                   disabled;
 	int                   temporary;
 	int                   hit_count;

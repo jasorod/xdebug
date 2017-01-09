@@ -62,9 +62,12 @@ void xdebug_brk_info_dtor(xdebug_brk_info *brk)
 	if (brk->condition) {
 		efree(brk->condition);
 	}
-	if (brk->condition_eval) {
-		efree(brk->condition_eval);
+
+	if (!Z_ISUNDEF(brk->condition_eval)) {
+		zval_dtor(&brk->condition_eval);
+		ZVAL_NULL(&brk->condition_eval);
 	}
+
 	xdfree(brk);
 }
 

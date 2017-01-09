@@ -2731,11 +2731,55 @@ ZEND_DLEXPORT void xdebug_statement_call(zend_op_array *op_array)
 			return;
 		}
 
-		if (XG(context).line_breakpoints) {
+		if (XG(context).line_breakpoints || XG(context.watch_breakpoints)) {
 			int   break_ok;
 			int   old_error_reporting;
 			zval  retval;
 			int   file_len = strlen(file);
+
+			/* check for watch breakpoints first before checking to see if we have a line breakpoint */
+			for (le = XDEBUG_LLIST_HEAD(XG(context).watch_breakpoints); le != NULL; le = XDEBUG_LLIST_NEXT(le)) {
+				brk = XDEBUG_LLIST_VALP(le);
+				
+				if (!brk->disabled) {
+					break_ok = 0; /* default behavior is to not stop at a watch breakpoint unless the value has changed */
+					char* eval_string = xdebug_sprintf("ISSET(%s) ? %s : NULL", brk->condition, brk->condition);
+
+					if (zend_eval_string(eval_string, &retval, "xdebug watch breakpoint" TSRMLS_CC) == SUCCESS) {
+						zval  compare_result;
+
+						if (is_not_identical_function(&compare_result, &retval, &brk->condition_eval) == SUCCESS) {
+							break_ok = Z_TYPE(compare_result) == IS_TRUE;
+							
+							if (break_ok) {
+								/* remove the current condition zval and make it undefined */
+								if (!Z_ISNULL(brk->condition_eval)) {
+									zval_dtor(&brk->condition_eval);
+									ZVAL_NULL(&brk->condition_eval);
+								}
+
+								/* now copy in the new value */
+								ZVAL_DUP(&brk->condition_eval, &retval);
+								zval_copy_ctor(&brk->condition_eval);
+							}
+
+							zval_dtor(&retval);
+							zval_dtor(&compare_result);
+							xdfree(eval_string);
+
+							if (break_ok) {
+								if (!XG(context).handler->remote_breakpoint(&(XG(context)), XG(stack), file, lineno, XDEBUG_BREAK, NULL, 0, NULL)) {
+									XG(remote_enabled) = 0;
+									break;
+								}
+								return;
+							}
+						}
+					} else {
+						xdfree(eval_string);
+					}
+				}
+			}
 
 			for (le = XDEBUG_LLIST_HEAD(XG(context).line_breakpoints); le != NULL; le = XDEBUG_LLIST_NEXT(le)) {
 				brk = XDEBUG_LLIST_VALP(le);
