@@ -1,7 +1,5 @@
 --TEST--
-Test for bug #879: Closing brace in trait-using class definitions is counted towards code coverage (< PHP 7.0)
---SKIPIF--
-<?php if (!version_compare(phpversion(), "7.0", '<')) echo "skip < PHP 7.0 needed\n"; ?>
+Test for bug #1386: Executable code not shown as executed/executable
 --INI--
 xdebug.default_enable=1
 xdebug.auto_trace=0
@@ -20,42 +18,50 @@ xdebug.coverage_enable=1
 xdebug.overload_var_dump=0
 --FILE--
 <?php
+xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
 
-xdebug_start_code_coverage(XDEBUG_CC_UNUSED);
+include 'bug01386-class2.inc';
+include 'bug01386-class1.inc';
 
-$file = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'bug00879.inc';
-include $file;
-
-new WithTrait;
+$Test1 = new TestClass();
 
 $cc = xdebug_get_code_coverage();
 ksort($cc);
-var_dump($cc);
+var_dump(array_slice($cc, 0, 2));
+
+xdebug_stop_code_coverage(false);
 ?>
 --EXPECTF--
 array(2) {
-  ["%sbug00879-php5.php"]=>
-  array(4) {
-    [5]=>
-    int(1)
-    [6]=>
-    int(1)
-    [8]=>
-    int(1)
-    [10]=>
-    int(1)
-  }
-  ["%sbug00879.inc"]=>
-  array(5) {
+  ["%sbug01386-class1.inc"]=>
+  array(6) {
     [3]=>
     int(1)
-    [5]=>
+    [7]=>
+    int(-1)
+    [8]=>
+    int(-1)
+    [9]=>
+    int(-1)
+    [10]=>
+    int(-2)
+    [13]=>
     int(1)
-    [6]=>
+  }
+  ["%sbug01386-class2.inc"]=>
+  array(6) {
+    [3]=>
     int(1)
     [7]=>
-    int(1)
+    int(-1)
     [8]=>
+    int(-1)
+    [9]=>
+    int(-1)
+    [10]=>
+    int(-2)
+    [13]=>
     int(1)
   }
 }
+
